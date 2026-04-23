@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Management Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #0a0a0f; }
+    .mermaid svg { max-width: 100%; background: transparent !important; }
+    .task-row:hover .row-actions { opacity: 1; }
+    .row-actions { opacity: 0; transition: opacity 0.15s; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
+    .progress-bar-inner { transition: width 0.6s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .fade-in { animation: fadeIn 0.25s ease forwards; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1a2e; }
+    ::-webkit-scrollbar-thumb { background: #3f3f5f; border-radius: 3px; }
+    input[type="range"] { accent-color: #4f46e5; }
+    select[multiple] { scrollbar-width: thin; }
+    select[multiple] option:checked { background-color: #4f46e5; color: #fff; }
+    .view-btn-active { background: #4f46e5; color: #fff; }
+    .view-btn-inactive { color: #9ca3af; }
+    .view-btn-inactive:hover { color: #e5e7eb; }
+    .tab-nav-btn { padding: 0.5rem 1.25rem; font-size: 0.875rem; font-weight: 500; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; color: #6b7280; white-space: nowrap; }
+    .tab-nav-btn:hover { color: #e5e7eb; }
+    .tab-nav-btn.tab-active { color: #818cf8; border-bottom-color: #4f46e5; }
+    .budget-bar { height: 8px; border-radius: 4px; overflow: hidden; background: #1f2937; }
+    .budget-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  </style>
+</head>
+<body class="text-gray-100 min-h-screen font-sans">
+
+<!-- ══════════════════════ HEADER ══════════════════════ -->
+<header class="bg-gray-900/80 backdrop-blur border-b border-gray-800 sticky top-0 z-40 px-6 py-3">
+  <div class="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">PM</div>
+      <div>
+        <h1 class="text-lg font-bold text-white leading-none">ProjectBoard</h1>
+        <p class="text-xs text-gray-500 leading-none mt-0.5">Project Management Dashboard</p>
+      </div>
+      <div class="hidden md:flex items-center gap-2 ml-4 bg-gray-800/60 rounded-lg px-3 py-1.5 min-w-44">
+        <div class="flex-1">
+          <div class="text-xs text-gray-500 mb-1">Overall Progress</div>
+          <div class="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+            <div id="headerProgress" class="progress-bar-inner h-full bg-indigo-500 rounded-full" style="width:0%"></div>
+          </div>
+        </div>
+        <span id="headerProgressPct" class="text-xs font-medium text-indigo-400 w-8 text-right">0%</span>
+      </div>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="openAddModal()"
+        class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Add Task
+      </button>
+      <button onclick="archiveCompleted()" id="archiveBtn"
+        class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12h12l1-12"/></svg>
+        Archive Completed
+      </button>
+      <button onclick="saveTasksJSON()"
+        class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Save JSON
+      </button>
+      <label class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5 cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        Load JSON
+        <input type="file" accept=".json" onchange="loadTasksJSON(event)" class="hidden" />
+      </label>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════ TAB NAVIGATION ══════════════════════ -->
+<nav class="bg-gray-900/60 border-b border-gray-800 px-6">
+  <div class="max-w-7xl mx-auto flex">
+    <button id="tabTasksBtn" onclick="switchTab('tasks')" class="tab-nav-btn tab-active">
+      <svg class="w-4 h-4 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"/></svg>
+      Tasks
+    </button>
+    <button id="tabBudgetBtn" onclick="switchTab('budget')" class="tab-nav-btn">
+      <svg class="w-4 h-4 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      ₹ Budget
+    </button>
+  </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-4 md:px-6 py-6">
+
+  <!-- ══════ TASKS TAB PANEL ══════ -->
+  <div id="tabPanelTasks" class="space-y-6">
+
+  <!-- STATS ROW -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="statsRow"></div>
+
+  <!-- FILTER BAR -->
+  <div class="flex flex-wrap gap-3 items-center bg-gray-900/60 border border-gray-800 rounded-xl px-4 py-3">
+    <div class="relative flex-1 min-w-48">
+      <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/>
+      </svg>
+      <input type="text" id="filterSearch" oninput="renderTasks()" placeholder="Search tasks…"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500" />
+    </div>
+    <select id="filterPriority" onchange="renderTasks()"
+      class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500">
+      <option value="">All Priorities</option>
+      <option value="critical">Critical</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+    <select id="filterStatus" onchange="renderTasks()"
+      class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500">
+      <option value="">All Status</option>
+      <option value="todo">To Do</option>
+      <option value="in-progress">In Progress</option>
+      <option value="done">Done</option>
+    </select>
+
+    <!-- VIEW TOGGLE -->
+    <div class="flex items-center gap-0.5 bg-gray-800 rounded-lg p-0.5 border border-gray-700">
+      <button id="viewDetailedBtn" onclick="setView('detailed')"
+        class="view-btn-active px-3 py-1 rounded-md text-xs font-medium transition">Detailed List</button>
+      <button id="viewPlanBtn" onclick="setView('plan')"
+        class="view-btn-inactive px-3 py-1 rounded-md text-xs font-medium transition">High-level Plan</button>
+    </div>
+
+    <button onclick="toggleArchiveView()" id="archiveViewBtn"
+      class="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 py-1.5 rounded-lg text-sm transition">
+      Show Archive
+    </button>
+  </div>
+
+  <!-- TASK TABLE -->
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden fade-in">
+    <div class="px-5 py-3.5 border-b border-gray-800 flex items-center justify-between">
+      <h2 class="font-semibold text-gray-100 text-sm" id="taskListTitle">Task List</h2>
+      <span class="text-xs text-gray-500" id="taskCount"></span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm" id="taskTable">
+        <thead class="bg-gray-800/50 text-xs uppercase tracking-wider text-gray-500">
+          <tr id="taskTableHead">
+            <th class="text-left px-5 py-3">Task</th>
+            <th class="text-left px-5 py-3">Priority</th>
+            <th class="text-left px-5 py-3">Status</th>
+            <th class="text-left px-5 py-3">Dates</th>
+            <th class="px-5 py-3 w-36"></th>
+          </tr>
+        </thead>
+        <tbody id="taskTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- GANTT CHART -->
+  <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden fade-in">
+    <div class="px-5 py-3.5 border-b border-gray-800 flex items-center justify-between">
+      <h2 class="font-semibold text-gray-100 text-sm">Gantt Chart</h2>
+      <button onclick="renderGantt()" class="text-xs text-indigo-400 hover:text-indigo-300 transition px-2 py-1 rounded hover:bg-indigo-500/10">
+        Refresh
+      </button>
+    </div>
+    <div class="p-5 overflow-x-auto">
+      <div id="ganttContainer"><p class="text-gray-600 text-sm text-center py-8">Loading chart…</p></div>
+    </div>
+  </div><!-- /tabPanelTasks -->
+
+  <!-- ══════ BUDGET TAB PANEL ══════ -->
+  <div id="tabPanelBudget" class="hidden space-y-6">
+
+    <!-- Project Summary Card -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 p-6">
+      <div class="flex items-start justify-between mb-5">
+        <div>
+          <h2 class="text-lg font-semibold text-white">Project Budget Overview</h2>
+          <p class="text-xs text-gray-500 mt-0.5">All amounts in Indian Rupees (₹ INR)</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs text-gray-500 whitespace-nowrap">Project Total (₹)</label>
+          <input type="number" id="projectTotalBudget" min="0" step="1000"
+            oninput="updateProjectBudget(this.value)"
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white w-44 focus:outline-none focus:border-indigo-500"
+            placeholder="e.g. 1000000" />
+        </div>
+      </div>
+      <div id="budgetSummaryCard">
+        <p class="text-gray-600 text-sm text-center py-4">No budget data yet — set Allocated Budget (₹) on tasks.</p>
+      </div>
+    </div>
+
+    <!-- Module Breakdown Table -->
+    <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-gray-800">
+        <h2 class="font-semibold text-gray-100 text-sm">Module Breakdown</h2>
+        <p class="text-xs text-gray-500 mt-0.5">Budgets grouped by top-level task (module). Subtask costs roll up to their parent.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-800/50 text-xs uppercase tracking-wider text-gray-500">
+            <tr>
+              <th class="text-left px-5 py-3">Module</th>
+              <th class="text-right px-5 py-3">Allocated (₹)</th>
+              <th class="text-right px-5 py-3">Spent (₹)</th>
+              <th class="text-right px-5 py-3">Remaining (₹)</th>
+              <th class="text-right px-5 py-3">% Used</th>
+              <th class="px-5 py-3 min-w-40">Usage</th>
+            </tr>
+          </thead>
+          <tbody id="budgetTableBody">
+            <tr><td colspan="6" class="px-5 py-10 text-center text-gray-600 text-sm">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /tabPanelBudget -->
+
+</main>
+
+<!-- ══════════════════════ ADD / EDIT MODAL ══════════════════════ -->
+<div id="taskModal" class="fixed inset-0 bg-black/75 flex items-center justify-center z-50 hidden p-4">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
+      <h3 class="text-lg font-semibold text-white" id="modalTitle">Add Task</h3>
+      <button onclick="closeModal()" class="text-gray-500 hover:text-gray-300 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="overflow-y-auto flex-1 px-6 py-4">
+      <form onsubmit="saveTask(event)" id="taskForm" class="space-y-4">
+        <input type="hidden" id="editTaskId" />
+
+        <!-- Title -->
+        <div>
+          <label class="text-xs font-medium text-gray-400 block mb-1.5">Title <span class="text-red-500">*</span></label>
+          <input type="text" id="taskTitle" required autocomplete="off"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40"
+            placeholder="Task title" />
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="text-xs font-medium text-gray-400 block mb-1.5">Description</label>
+          <textarea id="taskDescription" rows="2" autocomplete="off"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 resize-none"
+            placeholder="Optional description"></textarea>
+        </div>
+
+        <!-- Priority + Status -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Priority <span class="text-red-500">*</span></label>
+            <select id="taskPriority" required
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+              <option value="critical">🔴 Critical</option>
+              <option value="high">🟠 High</option>
+              <option value="medium" selected>🟡 Medium</option>
+              <option value="low">🔵 Low</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Status <span class="text-red-500">*</span></label>
+            <select id="taskStatus" required
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+              <option value="todo" selected>To Do</option>
+              <option value="in-progress">In Progress</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Start + End Dates -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Start Date <span class="text-red-500">*</span></label>
+            <input type="date" id="taskStart" required
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">End Date <span class="text-red-500">*</span></label>
+            <input type="date" id="taskEnd" required
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" />
+          </div>
+        </div>
+
+        <!-- Assignee + Budget -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Assignee</label>
+            <input type="text" id="taskAssignee" autocomplete="off"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+              placeholder="e.g. Alice, Team A" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Budget / Cost ($)</label>
+            <input type="number" id="taskBudget" min="0" step="0.01"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+              placeholder="e.g. 5000" />
+          </div>
+        </div>
+
+        <!-- Budget Tracking (INR) -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Allocated Budget (₹)</label>
+            <input type="number" id="taskBudgetAllocated" min="0" step="1"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+              placeholder="e.g. 50000" />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Spent (₹)</label>
+            <input type="number" id="taskBudgetSpent" min="0" step="1"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500"
+              placeholder="e.g. 0" />
+          </div>
+        </div>
+
+        <!-- Parent Task + Progress -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Parent Task</label>
+            <select id="taskParent"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+              <option value="">— None (top-level) —</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">
+              Progress — <span id="progressLabel" class="text-indigo-400 font-semibold">0%</span>
+            </label>
+            <input type="range" id="taskProgress" min="0" max="100" step="5" value="0"
+              oninput="document.getElementById('progressLabel').textContent=this.value+'%'"
+              class="w-full mt-2" />
+          </div>
+        </div>
+
+        <!-- Dependencies -->
+        <div>
+          <label class="text-xs font-medium text-gray-400 block mb-1.5">
+            Dependencies
+            <span class="text-gray-600 font-normal ml-1">(Ctrl/Cmd+click to select multiple)</span>
+          </label>
+          <select id="taskDependsOn" multiple size="4"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-500 text-gray-300">
+          </select>
+          <p class="text-xs text-gray-600 mt-1">Tasks that must be completed before this one can start.</p>
+        </div>
+
+        <!-- Milestone Toggle -->
+        <div class="flex items-center gap-3 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3">
+          <input type="checkbox" id="taskMilestone"
+            class="w-4 h-4 rounded accent-amber-400 cursor-pointer" />
+          <div>
+            <label for="taskMilestone" class="text-sm font-medium text-amber-300 cursor-pointer">Mark as Milestone</label>
+            <p class="text-xs text-gray-500 mt-0.5">Displays as a diamond ◆ on the Gantt chart.</p>
+          </div>
+        </div>
+
+      </form>
+    </div>
+    <div class="px-6 py-4 border-t border-gray-800 flex gap-3 flex-shrink-0">
+      <button type="submit" form="taskForm"
+        class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-medium transition">
+        Save Task
+      </button>
+      <button type="button" onclick="closeModal()"
+        class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg text-sm font-medium transition">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed bottom-5 right-5 px-4 py-3 rounded-xl shadow-2xl text-sm z-50 border hidden transition-all" role="alert"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   CONFIG & SHAREPOINT HELPERS
+══════════════════════════════════════════════════════ */
+const CONFIG = {
+  SITE: "https://phoqteklabs.sharepoint.com",
+  API: "https://phoqteklabs.sharepoint.com/_api/lists/getbytitle('FOG_Tasks')/items"
+};
+
+async function getDigest() {
+  const r = await fetch(CONFIG.SITE + "/_api/contextinfo", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Accept": "application/json;odata=nometadata" }
+  });
+  const d = await r.json();
+  return d.FormDigestValue;
+}
+
+function spToTask(item) {
+  let dependsOn = [];
+  try { dependsOn = JSON.parse(item.depends_on || '[]'); } catch {}
+  return normalizeTask({
+    _spId: item.Id,
+    id: item.task_id || String(item.Id),
+    title: item.Title || '',
+    description: item.description || '',
+    priority: item.priority || 'medium',
+    status: item.state || 'todo',
+    startDate: item.start_date ? item.start_date.split('T')[0] : '',
+    endDate: item.due_date ? item.due_date.split('T')[0] : '',
+    assignee: item.assignee || '',
+    budget: item.budget != null ? item.budget : null,
+    budget_allocated: item.budget_allocated || 0,
+    budget_spent: item.budget_spent || 0,
+    parentId: item.parent_id || null,
+    dependsOn,
+    isMilestone: !!item.is_milestone,
+    progress: item.estimate || 0,
+    archivedAt: item.archived_at || null,
+  });
+}
+
+function taskToSp(task) {
+  return {
+    "__metadata": { "type": "SP.Data.FOG_TasksListItem" },
+    task_id: task.id,
+    Title: task.title || '(untitled)',
+    description: task.description || '',
+    priority: task.priority || 'medium',
+    state: task.status || 'todo',
+    start_date: task.startDate || null,
+    due_date: task.endDate || null,
+    assignee: task.assignee || '',
+    budget: task.budget != null ? task.budget : null,
+    budget_allocated: task.budget_allocated || 0,
+    budget_spent: task.budget_spent || 0,
+    parent_id: task.parentId || null,
+    depends_on: JSON.stringify(task.dependsOn || []),
+    is_milestone: task.isMilestone || false,
+    estimate: task.progress || 0,
+    is_archived: !!task.archivedAt,
+    archived_at: task.archivedAt || null,
+  };
+}
+
+async function spCreate(task) {
+  const digest = await getDigest();
+  const r = await fetch(CONFIG.API, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept": "application/json;odata=nometadata",
+      "Content-Type": "application/json;odata=verbose",
+      "X-RequestDigest": digest,
+    },
+    body: JSON.stringify(taskToSp(task)),
+  });
+  if (!r.ok) throw new Error(`SP create failed: ${r.status}`);
+  const d = await r.json();
+  return d.Id;
+}
+
+async function spUpdate(task) {
+  if (!task._spId) throw new Error('No SP ID for update');
+  const digest = await getDigest();
+  const r = await fetch(`${CONFIG.API}(${task._spId})`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept": "application/json;odata=nometadata",
+      "Content-Type": "application/json;odata=verbose",
+      "X-RequestDigest": digest,
+      "X-HTTP-Method": "MERGE",
+      "IF-MATCH": "*",
+    },
+    body: JSON.stringify(taskToSp(task)),
+  });
+  if (!r.ok) throw new Error(`SP update failed: ${r.status}`);
+}
+
+async function spDelete(spId) {
+  const digest = await getDigest();
+  const r = await fetch(`${CONFIG.API}(${spId})`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept": "application/json;odata=nometadata",
+      "X-RequestDigest": digest,
+      "X-HTTP-Method": "DELETE",
+      "IF-MATCH": "*",
+    },
+  });
+  if (!r.ok) throw new Error(`SP delete failed: ${r.status}`);
+}
+
+/* ══════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════ */
+let tasks = [];
+let archived = [];
+let showingArchive = false;
+let editingId = null;
+let ganttSeq = 0;
+let currentView = 'detailed'; // 'detailed' | 'plan'
+let activeTab = 'tasks';     // 'tasks' | 'budget'
+let projectBudget = { total_budget: 0, currency: 'INR' };
+
+/* ══════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════ */
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    primaryColor: '#4f46e5',
+    primaryTextColor: '#e2e8f0',
+    primaryBorderColor: '#6366f1',
+    lineColor: '#4b5563',
+    sectionBkgColor: '#1e1e3a',
+    altSectionBkgColor: '#16162a',
+    gridColor: '#374151',
+    taskTextColor: '#f1f5f9',
+    taskTextOutsideColor: '#cbd5e1',
+    taskTextClickableColor: '#a5b4fc',
+    activeTaskBorderColor: '#818cf8',
+    activeTaskBkgColor: '#3730a3',
+    doneTaskBkgColor: '#065f46',
+    doneTaskBorderColor: '#059669',
+    critBorderColor: '#dc2626',
+    critBkgColor: '#7f1d1d',
+    todayLineColor: '#f59e0b',
+    fontSize: '13px',
+  },
+  gantt: { titleTopMargin: 28, barHeight: 28, barGap: 6, topPadding: 70, leftPadding: 180 }
+});
+
+async function init() {
+  const budgetStr = localStorage.getItem('pmProjectBudget');
+  if (budgetStr) {
+    try { projectBudget = JSON.parse(budgetStr); } catch {}
+  }
+  try {
+    await loadTasksFromSP();
+  } catch (err) {
+    console.error('Failed to load from SharePoint:', err);
+    showToast('Could not connect to SharePoint — check your connection', 'error');
+  }
+  renderAll();
+}
+
+function normalizeTask(t) {
+  return {
+    _spId: null,
+    parentId: null,
+    dependsOn: [],
+    assignee: '',
+    budget: null,
+    budget_allocated: 0,
+    budget_spent: 0,
+    isMilestone: false,
+    progress: 0,
+    archivedAt: null,
+    ...t,
+  };
+}
+
+async function loadTasksFromSP() {
+  const r = await fetch(CONFIG.API + "?$top=500&$orderby=Id desc", {
+    credentials: "include",
+    headers: { "Accept": "application/json;odata=nometadata" }
+  });
+  if (!r.ok) throw new Error(`SP fetch failed: ${r.status}`);
+  const d = await r.json();
+  const allItems = d.value.map(spToTask);
+  tasks = allItems.filter(t => !t.archivedAt);
+  archived = allItems.filter(t => !!t.archivedAt);
+}
+
+function renderAll() {
+  renderStats();
+  renderTasks();
+  renderGantt();
+  if (activeTab === 'budget') renderBudget();
+}
+
+/* ══════════════════════════════════════════════════════
+   STYLE MAPS
+══════════════════════════════════════════════════════ */
+const PRIORITY = {
+  critical: { label: 'Critical', badge: 'bg-red-500/15 text-red-400 border border-red-500/30',   dot: 'bg-red-500' },
+  high:     { label: 'High',     badge: 'bg-orange-500/15 text-orange-400 border border-orange-500/30', dot: 'bg-orange-500' },
+  medium:   { label: 'Medium',   badge: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30', dot: 'bg-yellow-400' },
+  low:      { label: 'Low',      badge: 'bg-sky-500/15 text-sky-400 border border-sky-500/30',    dot: 'bg-sky-500' },
+};
+
+const STATUS = {
+  'todo':        { label: 'To Do',       badge: 'bg-gray-600/20 text-gray-400 border border-gray-600/30' },
+  'in-progress': { label: 'In Progress', badge: 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30' },
+  'done':        { label: 'Done',        badge: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' },
+};
+
+/* ══════════════════════════════════════════════════════
+   STATS
+══════════════════════════════════════════════════════ */
+function renderStats() {
+  const total = tasks.length;
+  const done = tasks.filter(t => t.status === 'done').length;
+  const inProg = tasks.filter(t => t.status === 'in-progress').length;
+  const milestones = tasks.filter(t => t.isMilestone).length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  document.getElementById('headerProgress').style.width = pct + '%';
+  document.getElementById('headerProgressPct').textContent = pct + '%';
+
+  const cards = [
+    { label: 'Total Tasks',   value: total,      color: 'indigo',  icon: taskIcon() },
+    { label: 'In Progress',   value: inProg,     color: 'violet',  icon: flashIcon() },
+    { label: 'Completed',     value: done,        color: 'emerald', icon: checkIcon() },
+    { label: 'Milestones',    value: milestones,  color: 'amber',   icon: diamondStatIcon() },
+  ];
+
+  document.getElementById('statsRow').innerHTML = cards.map(c => `
+    <div class="bg-gray-900 rounded-xl border border-gray-800 px-5 py-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">${c.label}</p>
+          <p class="text-3xl font-bold text-${c.color}-400">${c.value}</p>
+        </div>
+        <div class="w-8 h-8 rounded-lg bg-${c.color}-500/10 flex items-center justify-center text-${c.color}-400">${c.icon}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW TOGGLE
+══════════════════════════════════════════════════════ */
+function setView(view) {
+  currentView = view;
+  const detBtn = document.getElementById('viewDetailedBtn');
+  const planBtn = document.getElementById('viewPlanBtn');
+  detBtn.className = (view === 'detailed' ? 'view-btn-active' : 'view-btn-inactive') + ' px-3 py-1 rounded-md text-xs font-medium transition';
+  planBtn.className = (view === 'plan' ? 'view-btn-active' : 'view-btn-inactive') + ' px-3 py-1 rounded-md text-xs font-medium transition';
+  renderTasks();
+}
+
+/* ══════════════════════════════════════════════════════
+   TASK TABLE
+══════════════════════════════════════════════════════ */
+function getFiltered() {
+  const src = showingArchive ? archived : tasks;
+  const status = document.getElementById('filterStatus').value;
+  const priority = document.getElementById('filterPriority').value;
+  const q = document.getElementById('filterSearch').value.toLowerCase();
+  let filtered = src.filter(t =>
+    (!status || t.status === status) &&
+    (!priority || t.priority === priority) &&
+    (!q || t.title.toLowerCase().includes(q) || (t.description||'').toLowerCase().includes(q))
+  );
+
+  // High-level Plan: only top-level tasks and milestones
+  if (currentView === 'plan' && !showingArchive) {
+    filtered = filtered.filter(t => !t.parentId || t.isMilestone);
+  }
+
+  return filtered;
+}
+
+function buildHierarchy(filtered) {
+  const rows = [];
+  const seen = new Set();
+
+  // Top-level first, then children
+  const topLevel = filtered.filter(t => !t.parentId);
+  for (const parent of topLevel) {
+    rows.push({ task: parent, depth: 0 });
+    seen.add(parent.id);
+    if (currentView !== 'plan') {
+      const children = filtered.filter(t => t.parentId === parent.id);
+      for (const child of children) {
+        rows.push({ task: child, depth: 1 });
+        seen.add(child.id);
+      }
+    }
+  }
+
+  // Orphaned subtasks (parent was filtered out)
+  for (const t of filtered) {
+    if (!seen.has(t.id)) {
+      rows.push({ task: t, depth: 0 });
+    }
+  }
+
+  return rows;
+}
+
+function renderTasks() {
+  const filtered = getFiltered();
+  const isDetailed = currentView === 'detailed' && !showingArchive;
+
+  document.getElementById('taskCount').textContent = `${filtered.length} task${filtered.length !== 1 ? 's' : ''}`;
+  document.getElementById('taskListTitle').textContent = showingArchive
+    ? 'Archived Tasks'
+    : currentView === 'plan' ? 'High-level Plan' : 'Detailed List';
+
+  // Update table header
+  document.getElementById('taskTableHead').innerHTML = isDetailed ? `
+    <th class="text-left px-5 py-3">Task</th>
+    <th class="text-left px-5 py-3">Assignee</th>
+    <th class="text-left px-5 py-3">Priority</th>
+    <th class="text-left px-5 py-3">Status</th>
+    <th class="text-left px-5 py-3">Dates</th>
+    <th class="px-5 py-3 w-36"></th>
+  ` : `
+    <th class="text-left px-5 py-3">Task</th>
+    <th class="text-left px-5 py-3">Priority</th>
+    <th class="text-left px-5 py-3">Status</th>
+    <th class="text-left px-5 py-3">Dates</th>
+    <th class="px-5 py-3 w-36"></th>
+  `;
+
+  const tbody = document.getElementById('taskTableBody');
+  if (!filtered.length) {
+    const cols = isDetailed ? 6 : 5;
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="px-5 py-14 text-center text-gray-600 text-sm">
+      ${showingArchive ? 'No archived tasks' : 'No tasks found — add one above'}
+    </td></tr>`;
+    return;
+  }
+
+  const hierarchy = buildHierarchy(filtered);
+  tbody.innerHTML = hierarchy.map(({ task: t, depth }) => renderTaskRow(t, depth, isDetailed)).join('');
+}
+
+function renderTaskRow(t, depth, isDetailed) {
+  const p = PRIORITY[t.priority] || PRIORITY.medium;
+  const s = STATUS[t.status] || STATUS.todo;
+  const overdue = !showingArchive && t.status !== 'done' && t.endDate && t.endDate < today();
+  const isSubtask = depth > 0;
+
+  // Unmet dependencies
+  const unmetDeps = (t.dependsOn || []).filter(depId => {
+    const dep = tasks.find(x => x.id === depId);
+    return dep && dep.status !== 'done';
+  }).map(depId => {
+    const dep = tasks.find(x => x.id === depId);
+    return dep ? escHtml(dep.title.slice(0, 25)) : depId;
+  });
+
+  const subtaskCount = tasks.filter(x => x.parentId === t.id).length;
+  const progress = t.progress || 0;
+  const budget = t.budget != null && t.budget !== '' ? Number(t.budget) : null;
+
+  const taskCell = `
+    <td class="px-5 py-3.5 ${isSubtask ? 'pl-10' : ''}">
+      <div class="flex items-start gap-2">
+        ${isSubtask ? '<span class="text-gray-600 text-xs mt-1 flex-shrink-0 font-mono">└─</span>' : ''}
+        ${t.isMilestone
+          ? `<svg class="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L22 12L12 22L2 12Z"/></svg>`
+          : `<span class="w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${p.dot}"></span>`
+        }
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-medium text-gray-100 ${t.status === 'done' ? 'line-through text-gray-500' : ''}">${escHtml(t.title)}</span>
+            ${t.isMilestone ? '<span class="text-xs text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 font-medium">◆ Milestone</span>' : ''}
+            ${subtaskCount > 0 ? `<span class="text-xs text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">${subtaskCount} subtask${subtaskCount > 1 ? 's' : ''}</span>` : ''}
+          </div>
+          ${t.description ? `<p class="text-xs text-gray-500 mt-0.5 truncate max-w-sm">${escHtml(t.description)}</p>` : ''}
+          ${isDetailed && (budget !== null || unmetDeps.length || overdue) ? `
+            <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+              ${overdue ? '<span class="text-xs text-red-400 font-medium">Overdue</span>' : ''}
+              ${unmetDeps.length ? `<span class="text-xs text-amber-500">⏳ Blocked by: ${unmetDeps.join(', ')}</span>` : ''}
+              ${budget !== null ? `<span class="text-xs text-emerald-400/70">$${budget.toLocaleString()}</span>` : ''}
+            </div>
+          ` : (overdue && !isDetailed ? '<span class="text-xs text-red-400 font-medium">Overdue</span>' : '')}
+          ${isDetailed && progress > 0 ? `
+            <div class="mt-1.5 flex items-center gap-2">
+              <div class="w-24 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div class="h-full rounded-full ${progress === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}" style="width:${progress}%"></div>
+              </div>
+              <span class="text-xs text-gray-500">${progress}%</span>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </td>`;
+
+  const assigneeCell = isDetailed ? `
+    <td class="px-5 py-3.5">
+      ${t.assignee ? `<span class="text-xs text-gray-300 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">${escHtml(t.assignee)}</span>` : '<span class="text-gray-600 text-xs">—</span>'}
+    </td>` : '';
+
+  const priorityCell = `
+    <td class="px-5 py-3.5">
+      <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-medium ${p.badge}">${p.label}</span>
+    </td>`;
+
+  const statusCell = `
+    <td class="px-5 py-3.5">
+      <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-medium ${s.badge}">${s.label}</span>
+    </td>`;
+
+  const datesCell = `
+    <td class="px-5 py-3.5 text-gray-500 text-xs font-mono whitespace-nowrap">
+      <span class="${overdue ? 'text-red-400' : ''}">${t.startDate || '—'}</span>
+      <span class="text-gray-700 mx-1">→</span>
+      <span class="${overdue ? 'text-red-400' : ''}">${t.endDate || '—'}</span>
+    </td>`;
+
+  const actionsCell = `
+    <td class="px-5 py-3.5">
+      <div class="row-actions flex gap-1.5 justify-end">
+        ${!showingArchive ? `
+          <button onclick="editTask('${t.id}')"
+            class="text-xs text-indigo-400 hover:text-white px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/30 transition">Edit</button>
+          ${t.status !== 'done' ? `
+            <button onclick="markDone('${t.id}')"
+              class="text-xs text-emerald-400 hover:text-white px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/30 transition">Done</button>
+          ` : ''}
+          <button onclick="deleteTask('${t.id}')"
+            class="text-xs text-red-400 hover:text-white px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/30 transition">Delete</button>
+        ` : `
+          <button onclick="restoreTask('${t.id}')"
+            class="text-xs text-indigo-400 hover:text-white px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/30 transition">Restore</button>
+          <button onclick="deleteArchived('${t.id}')"
+            class="text-xs text-red-400 hover:text-white px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/30 transition">Delete</button>
+        `}
+      </div>
+    </td>`;
+
+  const rowClass = `task-row border-t border-gray-800/60 hover:bg-gray-800/25 transition ${isSubtask ? 'bg-gray-950/40' : ''} ${t.isMilestone ? 'bg-amber-500/3' : ''}`;
+
+  return `<tr class="${rowClass}">${taskCell}${assigneeCell}${priorityCell}${statusCell}${datesCell}${actionsCell}</tr>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   GANTT CHART
+══════════════════════════════════════════════════════ */
+function mermaidId(id) {
+  return 't' + String(id).replace(/[^a-zA-Z0-9]/g, '');
+}
+
+async function renderGantt() {
+  const container = document.getElementById('ganttContainer');
+  const dateTasks = tasks.filter(t => t.startDate && t.endDate && t.startDate <= t.endDate);
+
+  if (!dateTasks.length) {
+    container.innerHTML = '<p class="text-gray-600 text-sm text-center py-10">Add tasks with start/end dates to see the Gantt chart</p>';
+    return;
+  }
+
+  const groups = { critical: [], high: [], medium: [], low: [] };
+  dateTasks.forEach(t => { if (groups[t.priority]) groups[t.priority].push(t); });
+
+  const stMap = { 'done': 'done', 'in-progress': 'active', 'todo': '' };
+
+  let def = `gantt\n    title Project Timeline\n    dateFormat YYYY-MM-DD\n    axisFormat %b %d\n    excludes weekends\n`;
+
+  for (const [pri, list] of Object.entries(groups)) {
+    if (!list.length) continue;
+    def += `    section ${PRIORITY[pri].label}\n`;
+    list.forEach(t => {
+      const mid = mermaidId(t.id);
+      const rawTitle = t.title.replace(/[:#,;%]/g, ' ').slice(0, 38);
+      const pct = t.progress > 0 ? ` ${t.progress}%` : '';
+      const safeTitle = (rawTitle + pct).trim();
+
+      if (t.isMilestone) {
+        def += `    ${safeTitle} :milestone, ${mid}, ${t.startDate}, 0d\n`;
+        return;
+      }
+
+      const st = stMap[t.status] || '';
+      const end = t.startDate === t.endDate ? addDays(t.endDate, 1) : t.endDate;
+      const deps = (t.dependsOn || []).filter(depId => dateTasks.find(x => x.id === depId));
+
+      if (deps.length) {
+        const afterParts = deps.map(depId => mermaidId(depId)).join(' ');
+        const typeStr = st ? `${st}, ` : '';
+        def += `    ${safeTitle} :${typeStr}${mid}, after ${afterParts}, ${end}\n`;
+      } else {
+        const typeStr = st ? `${st}, ` : '';
+        def += `    ${safeTitle} :${typeStr}${mid}, ${t.startDate}, ${end}\n`;
+      }
+    });
+  }
+
+  try {
+    container.innerHTML = '<p class="text-gray-600 text-xs text-center py-3">Rendering…</p>';
+    ganttSeq++;
+    const renderId = `gantt_${ganttSeq}_${Date.now()}`;
+    const { svg } = await mermaid.render(renderId, def);
+    container.innerHTML = svg;
+  } catch (err) {
+    container.innerHTML = `
+      <div class="text-red-400 text-xs p-4 bg-red-500/5 rounded-lg border border-red-500/20">
+        <p class="font-medium mb-2">Chart render error — check task dates</p>
+        <pre class="overflow-auto text-gray-500">${escHtml(def)}</pre>
+      </div>`;
+  }
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+/* ══════════════════════════════════════════════════════
+   CRUD
+══════════════════════════════════════════════════════ */
+function populateModalDropdowns(excludeId) {
+  const parentSel = document.getElementById('taskParent');
+  const depSel = document.getElementById('taskDependsOn');
+
+  // Candidates for parent: top-level tasks only (no subtasks), excluding self
+  const parentCandidates = tasks.filter(t => !t.parentId && t.id !== excludeId);
+  parentSel.innerHTML = '<option value="">— None (top-level) —</option>' +
+    parentCandidates.map(t =>
+      `<option value="${escHtml(t.id)}">${escHtml(t.title.slice(0, 50))}</option>`
+    ).join('');
+
+  // Candidates for deps: all tasks except self
+  const depCandidates = tasks.filter(t => t.id !== excludeId);
+  depSel.innerHTML = depCandidates.map(t =>
+    `<option value="${escHtml(t.id)}">${escHtml(t.title.slice(0, 50))} (${STATUS[t.status]?.label || t.status})</option>`
+  ).join('');
+}
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Add Task';
+  document.getElementById('editTaskId').value = '';
+  document.getElementById('taskTitle').value = '';
+  document.getElementById('taskDescription').value = '';
+  document.getElementById('taskPriority').value = 'medium';
+  document.getElementById('taskStatus').value = 'todo';
+  document.getElementById('taskStart').value = today();
+  document.getElementById('taskEnd').value = '';
+  document.getElementById('taskAssignee').value = '';
+  document.getElementById('taskBudget').value = '';
+  document.getElementById('taskBudgetAllocated').value = '';
+  document.getElementById('taskBudgetSpent').value = '';
+  document.getElementById('taskProgress').value = 0;
+  document.getElementById('progressLabel').textContent = '0%';
+  document.getElementById('taskMilestone').checked = false;
+  populateModalDropdowns(null);
+  document.getElementById('taskParent').value = '';
+  document.getElementById('taskModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('taskTitle').focus(), 50);
+}
+
+function editTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Task';
+  document.getElementById('editTaskId').value = id;
+  document.getElementById('taskTitle').value = t.title;
+  document.getElementById('taskDescription').value = t.description || '';
+  document.getElementById('taskPriority').value = t.priority;
+  document.getElementById('taskStatus').value = t.status;
+  document.getElementById('taskStart').value = t.startDate;
+  document.getElementById('taskEnd').value = t.endDate;
+  document.getElementById('taskAssignee').value = t.assignee || '';
+  document.getElementById('taskBudget').value = t.budget != null ? t.budget : '';
+  document.getElementById('taskBudgetAllocated').value = t.budget_allocated > 0 ? t.budget_allocated : '';
+  document.getElementById('taskBudgetSpent').value = t.budget_spent > 0 ? t.budget_spent : '';
+  document.getElementById('taskProgress').value = t.progress || 0;
+  document.getElementById('progressLabel').textContent = (t.progress || 0) + '%';
+  document.getElementById('taskMilestone').checked = !!t.isMilestone;
+
+  populateModalDropdowns(id);
+  document.getElementById('taskParent').value = t.parentId || '';
+
+  // Set selected dependencies
+  const depSel = document.getElementById('taskDependsOn');
+  const deps = t.dependsOn || [];
+  Array.from(depSel.options).forEach(opt => {
+    opt.selected = deps.includes(opt.value);
+  });
+
+  document.getElementById('taskModal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('taskModal').classList.add('hidden');
+  editingId = null;
+}
+
+async function saveTask(e) {
+  e.preventDefault();
+  const start = document.getElementById('taskStart').value;
+  const end = document.getElementById('taskEnd').value;
+  if (end < start) { showToast('End date must be on or after start date', 'error'); return; }
+
+  const depSel = document.getElementById('taskDependsOn');
+  const dependsOn = Array.from(depSel.selectedOptions).map(o => o.value);
+
+  const budgetRaw = document.getElementById('taskBudget').value;
+  const budgetAllocRaw = document.getElementById('taskBudgetAllocated').value;
+  const budgetSpentRaw = document.getElementById('taskBudgetSpent').value;
+
+  const existing = editingId ? tasks.find(t => t.id === editingId) : null;
+  const task = normalizeTask({
+    _spId: existing ? existing._spId : null,
+    id: editingId || String(Date.now()),
+    title: document.getElementById('taskTitle').value.trim(),
+    description: document.getElementById('taskDescription').value.trim(),
+    priority: document.getElementById('taskPriority').value,
+    status: document.getElementById('taskStatus').value,
+    startDate: start,
+    endDate: end,
+    assignee: document.getElementById('taskAssignee').value.trim(),
+    budget: budgetRaw !== '' ? parseFloat(budgetRaw) : null,
+    budget_allocated: budgetAllocRaw !== '' ? parseFloat(budgetAllocRaw) : 0,
+    budget_spent: budgetSpentRaw !== '' ? parseFloat(budgetSpentRaw) : 0,
+    parentId: document.getElementById('taskParent').value || null,
+    dependsOn,
+    isMilestone: document.getElementById('taskMilestone').checked,
+    progress: parseInt(document.getElementById('taskProgress').value, 10),
+  });
+
+  try {
+    if (editingId && task._spId) {
+      await spUpdate(task);
+      const idx = tasks.findIndex(t => t.id === editingId);
+      if (idx >= 0) tasks[idx] = task;
+    } else {
+      const spId = await spCreate(task);
+      task._spId = spId;
+      tasks.push(task);
+    }
+    closeModal();
+    renderAll();
+    showToast(editingId ? 'Task updated' : 'Task created');
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to save to SharePoint', 'error');
+  }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Delete this task permanently?')) return;
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  try {
+    if (t._spId) await spDelete(t._spId);
+    tasks = tasks.filter(x => x.id !== id);
+    tasks.forEach(x => {
+      x.dependsOn = (x.dependsOn || []).filter(dep => dep !== id);
+      if (x.parentId === id) x.parentId = null;
+    });
+    renderAll();
+    showToast('Task deleted');
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to delete from SharePoint', 'error');
+  }
+}
+
+async function markDone(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  t.status = 'done';
+  if (!t.progress || t.progress < 100) t.progress = 100;
+  try {
+    if (t._spId) await spUpdate(t);
+    renderAll();
+    showToast('Marked as done');
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to update in SharePoint', 'error');
+  }
+}
+
+async function restoreTask(id) {
+  const t = archived.find(x => x.id === id);
+  if (!t) return;
+  try {
+    const restored = normalizeTask({ ...t, status: 'todo', archivedAt: null });
+    if (restored._spId) await spUpdate(restored);
+    archived = archived.filter(x => x.id !== id);
+    tasks.push(restored);
+    renderAll();
+    showToast('Task restored to active');
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to restore in SharePoint', 'error');
+  }
+}
+
+async function deleteArchived(id) {
+  if (!confirm('Permanently delete this archived task?')) return;
+  const t = archived.find(x => x.id === id);
+  if (!t) return;
+  try {
+    if (t._spId) await spDelete(t._spId);
+    archived = archived.filter(x => x.id !== id);
+    renderTasks();
+    showToast('Archived task deleted');
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to delete from SharePoint', 'error');
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   AUTOMATION — Archive Completed
+══════════════════════════════════════════════════════ */
+async function archiveCompleted() {
+  const completed = tasks.filter(t => t.status === 'done');
+  if (!completed.length) {
+    showToast('No completed tasks to archive', 'info');
+    return;
+  }
+
+  const stamp = new Date().toISOString();
+  try {
+    for (const t of completed) {
+      t.archivedAt = stamp;
+      if (t._spId) await spUpdate(t);
+    }
+    archived = [...archived, ...completed];
+    tasks = tasks.filter(t => t.status !== 'done');
+    renderAll();
+    showToast(`Archived ${completed.length} completed task${completed.length !== 1 ? 's' : ''}`);
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to archive in SharePoint', 'error');
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   ARCHIVE VIEW TOGGLE
+══════════════════════════════════════════════════════ */
+function toggleArchiveView() {
+  showingArchive = !showingArchive;
+  const btn = document.getElementById('archiveViewBtn');
+  btn.textContent = showingArchive ? 'Show Active' : 'Show Archive';
+  btn.classList.toggle('bg-indigo-800/40', showingArchive);
+  btn.classList.toggle('border-indigo-600/40', showingArchive);
+  renderTasks();
+}
+
+/* ══════════════════════════════════════════════════════
+   JSON IMPORT / EXPORT
+══════════════════════════════════════════════════════ */
+function saveTasksJSON() {
+  const stripSp = ({ _spId, ...rest }) => rest;
+  const data = { tasks: tasks.map(stripSp), archived: archived.map(stripSp), savedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tasks.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  showToast('tasks.json saved to downloads');
+}
+
+function loadTasksJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (!Array.isArray(d.tasks)) throw new Error('Invalid format');
+      const importedTasks = (d.tasks || []).map(t => normalizeTask({ ...t, _spId: null }));
+      const importedArchived = (d.archived || []).map(t => normalizeTask({
+        ...t, _spId: null, archivedAt: t.archivedAt || new Date().toISOString()
+      }));
+      showToast('Importing to SharePoint…', 'info');
+      for (const t of importedTasks) {
+        const spId = await spCreate(t);
+        t._spId = spId;
+      }
+      for (const t of importedArchived) {
+        const spId = await spCreate(t);
+        t._spId = spId;
+      }
+      tasks = importedTasks;
+      archived = importedArchived;
+      renderAll();
+      showToast(`Imported ${tasks.length} tasks to SharePoint`);
+    } catch (err) {
+      console.error(err);
+      showToast('Import failed: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ══════════════════════════════════════════════════════
+   UTILITIES
+══════════════════════════════════════════════════════ */
+function today() { return new Date().toISOString().split('T')[0]; }
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function showToast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  const base = 'fixed bottom-5 right-5 px-4 py-3 rounded-xl shadow-2xl text-sm z-50 border ';
+  const styles = {
+    success: 'bg-emerald-900/80 border-emerald-700/60 text-emerald-200 backdrop-blur',
+    error:   'bg-red-900/80 border-red-700/60 text-red-200 backdrop-blur',
+    info:    'bg-gray-800/90 border-gray-700/60 text-gray-200 backdrop-blur',
+  };
+  el.className = base + (styles[type] || styles.info);
+  el.classList.remove('hidden');
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.add('hidden'), 3200);
+}
+
+/* ══════════════════════════════════════════════════════
+   ICON HELPERS
+══════════════════════════════════════════════════════ */
+function taskIcon() { return `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`; }
+function flashIcon() { return `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`; }
+function checkIcon() { return `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`; }
+function diamondStatIcon() { return `<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L22 12L12 22L2 12Z"/></svg>`; }
+
+/* ══════════════════════════════════════════════════════
+   TAB SWITCHING
+══════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tabPanelTasks').classList.toggle('hidden', tab !== 'tasks');
+  document.getElementById('tabPanelBudget').classList.toggle('hidden', tab !== 'budget');
+  document.getElementById('tabTasksBtn').classList.toggle('tab-active', tab === 'tasks');
+  document.getElementById('tabBudgetBtn').classList.toggle('tab-active', tab === 'budget');
+  if (tab === 'budget') renderBudget();
+}
+
+/* ══════════════════════════════════════════════════════
+   BUDGET TRACKING
+══════════════════════════════════════════════════════ */
+function updateProjectBudget(val) {
+  projectBudget.total_budget = parseFloat(val) || 0;
+  localStorage.setItem('pmProjectBudget', JSON.stringify(projectBudget));
+  renderBudget();
+}
+
+function fmtINR(n) {
+  return Math.round(Number(n) || 0).toLocaleString('en-IN');
+}
+
+function buildModuleBudgets() {
+  const moduleMap = new Map();
+  for (const t of tasks) {
+    const parentExists = t.parentId && tasks.find(x => x.id === t.parentId);
+    const moduleId = parentExists ? t.parentId : t.id;
+    const modTask = tasks.find(x => x.id === moduleId);
+    const moduleName = modTask ? modTask.title : t.title;
+    if (!moduleMap.has(moduleId)) {
+      moduleMap.set(moduleId, { id: moduleId, name: moduleName, allocated: 0, spent: 0, taskCount: 0 });
+    }
+    const m = moduleMap.get(moduleId);
+    m.allocated += Number(t.budget_allocated) || 0;
+    m.spent += Number(t.budget_spent) || 0;
+    m.taskCount++;
+  }
+  return Array.from(moduleMap.values()).filter(m => m.allocated > 0 || m.spent > 0);
+}
+
+function renderBudget() {
+  const modules = buildModuleBudgets();
+  const totalAllocated = modules.reduce((s, m) => s + m.allocated, 0);
+  const totalSpent = modules.reduce((s, m) => s + m.spent, 0);
+  const totalRemaining = totalAllocated - totalSpent;
+  const overallPct = totalAllocated > 0 ? Math.round((totalSpent / totalAllocated) * 100) : 0;
+  const projectTotal = projectBudget.total_budget || 0;
+
+  const ptInput = document.getElementById('projectTotalBudget');
+  if (ptInput && !ptInput.matches(':focus')) ptInput.value = projectTotal || '';
+
+  const summaryEl = document.getElementById('budgetSummaryCard');
+
+  if (!totalAllocated && !totalSpent) {
+    summaryEl.innerHTML = '<p class="text-gray-600 text-sm text-center py-4">No budget data yet — set Allocated Budget (₹) on tasks.</p>';
+    document.getElementById('budgetTableBody').innerHTML =
+      '<tr><td colspan="6" class="px-5 py-10 text-center text-gray-600 text-sm">No tasks with budget data found.</td></tr>';
+    return;
+  }
+
+  const spendColor = overallPct > 90 ? 'red' : overallPct > 70 ? 'amber' : 'emerald';
+  const projAllocPct = projectTotal > 0 ? Math.round((totalAllocated / projectTotal) * 100) : null;
+
+  summaryEl.innerHTML = `
+    <div class="grid grid-cols-3 gap-4 mb-5">
+      <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Total Allocated</p>
+        <p class="text-2xl font-bold text-indigo-400">₹${fmtINR(totalAllocated)}</p>
+        ${projAllocPct !== null ? `<p class="text-xs text-gray-600 mt-1">${projAllocPct}% of project total</p>` : ''}
+      </div>
+      <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Total Spent</p>
+        <p class="text-2xl font-bold text-${spendColor}-400">₹${fmtINR(totalSpent)}</p>
+        <p class="text-xs text-gray-600 mt-1">${overallPct}% of allocated</p>
+      </div>
+      <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Remaining</p>
+        <p class="text-2xl font-bold ${totalRemaining < 0 ? 'text-red-400' : 'text-gray-200'}">${totalRemaining < 0 ? '-' : ''}₹${fmtINR(Math.abs(totalRemaining))}</p>
+        ${totalRemaining < 0 ? '<p class="text-xs text-red-500 mt-1">Over budget</p>' : ''}
+      </div>
+    </div>
+    <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+      <span>Overall spend rate</span>
+      <span class="font-semibold text-${spendColor}-400">${overallPct}%</span>
+    </div>
+    <div class="budget-bar">
+      <div class="budget-bar-fill bg-${spendColor}-500" style="width:${Math.min(overallPct, 100)}%"></div>
+    </div>
+    ${projectTotal > 0 ? `
+      <div class="flex items-center justify-between text-xs text-gray-600 mt-3 mb-1.5">
+        <span>Allocated vs Project Total (₹${fmtINR(projectTotal)})</span>
+        <span class="font-semibold">${projAllocPct}%</span>
+      </div>
+      <div class="budget-bar">
+        <div class="budget-bar-fill bg-indigo-500" style="width:${Math.min(projAllocPct, 100)}%"></div>
+      </div>
+    ` : ''}
+  `;
+
+  if (!modules.length) {
+    document.getElementById('budgetTableBody').innerHTML =
+      '<tr><td colspan="6" class="px-5 py-10 text-center text-gray-600 text-sm">No tasks with budget data found.</td></tr>';
+    return;
+  }
+
+  document.getElementById('budgetTableBody').innerHTML = modules.map(m => {
+    const pct = m.allocated > 0 ? Math.round((m.spent / m.allocated) * 100) : 0;
+    const color = pct > 90 ? 'red' : pct > 70 ? 'amber' : 'emerald';
+    const rem = m.allocated - m.spent;
+    return `
+      <tr class="border-t border-gray-800/60 hover:bg-gray-800/20 transition">
+        <td class="px-5 py-3.5">
+          <div class="font-medium text-gray-200">${escHtml(m.name)}</div>
+          <div class="text-xs text-gray-600 mt-0.5">${m.taskCount} task${m.taskCount !== 1 ? 's' : ''}</div>
+        </td>
+        <td class="px-5 py-3.5 text-right font-mono tabular-nums text-gray-300">₹${fmtINR(m.allocated)}</td>
+        <td class="px-5 py-3.5 text-right font-mono tabular-nums text-${color}-400">₹${fmtINR(m.spent)}</td>
+        <td class="px-5 py-3.5 text-right font-mono tabular-nums ${rem < 0 ? 'text-red-400' : 'text-gray-400'}">${rem < 0 ? '-' : ''}₹${fmtINR(Math.abs(rem))}</td>
+        <td class="px-5 py-3.5 text-right">
+          <span class="font-semibold text-${color}-400">${pct}%</span>
+        </td>
+        <td class="px-5 py-3.5">
+          <div class="budget-bar">
+            <div class="budget-bar-fill bg-${color}-500" style="width:${Math.min(pct, 100)}%"></div>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════════
+   KEYBOARD & MODAL BACKDROP
+══════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); openAddModal(); }
+});
+
+document.getElementById('taskModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+/* ══════════════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════════════ */
+init();
+</script>
+</body>
+</html>
