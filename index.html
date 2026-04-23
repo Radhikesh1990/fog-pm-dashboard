@@ -52,6 +52,9 @@
         </div>
         <span id="headerProgressPct" class="text-xs font-medium text-indigo-400 w-8 text-right">0%</span>
       </div>
+      <div id="offlineIndicator" class="hidden items-center gap-1.5 text-xs text-gray-500 ml-2">
+        <span class="w-2 h-2 rounded-full bg-gray-500 inline-block"></span>Offline mode
+      </div>
     </div>
     <div class="flex gap-2 flex-wrap">
       <button onclick="openAddModal()"
@@ -68,6 +71,11 @@
         class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
         Save JSON
+      </button>
+      <button onclick="(function(){const data={tasks:tasks,archived:archived,savedAt:new Date().toISOString()};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='debug_export.json';a.click();})()"
+        class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Debug Export
       </button>
       <label class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5 cursor-pointer">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
@@ -324,6 +332,33 @@
           </div>
         </div>
 
+        <!-- Cycle / Sprint + Module -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Cycle / Sprint</label>
+            <select id="taskCycle"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+              <option value="Phase 1A – Bench Architecture">Phase 1A – Bench Architecture</option>
+              <option value="Phase 1B – Subsystem Characterisation" selected>Phase 1B – Subsystem Characterisation</option>
+              <option value="Phase 1C – System Integration">Phase 1C – System Integration</option>
+              <option value="Phase 2 – Closed-Loop FOG">Phase 2 – Closed-Loop FOG</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-gray-400 block mb-1.5">Module</label>
+            <select id="taskModule"
+              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+              <option value="">— Select module —</option>
+              <option value="Optical Source and Coil">Optical Source and Coil</option>
+              <option value="Phase Modulator Chain">Phase Modulator Chain</option>
+              <option value="Detection and Demodulation">Detection and Demodulation</option>
+              <option value="Power Infrastructure">Power Infrastructure</option>
+              <option value="Signal Processing">Signal Processing</option>
+              <option value="System Integration">System Integration</option>
+            </select>
+          </div>
+        </div>
+
         <!-- Parent Task + Progress -->
         <div class="grid grid-cols-2 gap-4">
           <div>
@@ -549,12 +584,38 @@ async function init() {
     await loadTasksFromSP();
   } catch (err) {
     console.error('Failed to load from SharePoint:', err);
-    showToast('Could not connect to SharePoint — check your connection', 'error');
+    const cache = localStorage.getItem('pmTasksCache');
+    if (cache) {
+      try {
+        const d = JSON.parse(cache);
+        tasks = (d.tasks || []).map(t => normalizeTask(t));
+        archived = (d.archived || []).map(t => normalizeTask(t));
+      } catch {}
+    }
+    const ind = document.getElementById('offlineIndicator');
+    if (ind) { ind.classList.remove('hidden'); ind.classList.add('flex'); }
   }
   renderAll();
 }
 
 function normalizeTask(t) {
+  // Map snake_case field names to camelCase
+  if (t.start_date !== undefined && t.startDate === undefined)   t = { ...t, startDate: t.start_date };
+  if (t.end_date !== undefined && t.endDate === undefined)       t = { ...t, endDate: t.end_date };
+  if (t.parent_id !== undefined && t.parentId === undefined)     t = { ...t, parentId: t.parent_id };
+  if (t.is_milestone !== undefined && t.isMilestone === undefined) t = { ...t, isMilestone: t.is_milestone };
+  if (t.archived_at !== undefined && t.archivedAt === undefined) t = { ...t, archivedAt: t.archived_at };
+
+  // Normalise priority to lowercase slug
+  if (t.priority) t = { ...t, priority: t.priority.toLowerCase() };
+
+  // Normalise status to app slugs
+  const statusMap = { 'in progress': 'in-progress', 'to do': 'todo', 'completed': 'done', 'blocked': 'blocked' };
+  if (t.status) {
+    const mapped = statusMap[t.status.toLowerCase()];
+    if (mapped) t = { ...t, status: mapped };
+  }
+
   return {
     _spId: null,
     parentId: null,
@@ -566,6 +627,8 @@ function normalizeTask(t) {
     isMilestone: false,
     progress: 0,
     archivedAt: null,
+    cycle: 'Phase 1B – Subsystem Characterisation',
+    module: '',
     ...t,
   };
 }
@@ -580,6 +643,7 @@ async function loadTasksFromSP() {
   const allItems = d.value.map(spToTask);
   tasks = allItems.filter(t => !t.archivedAt);
   archived = allItems.filter(t => !!t.archivedAt);
+  localStorage.setItem('pmTasksCache', JSON.stringify({ tasks, archived }));
 }
 
 function renderAll() {
@@ -978,6 +1042,8 @@ function editTask(id) {
 
   populateModalDropdowns(id);
   document.getElementById('taskParent').value = t.parentId || '';
+  document.getElementById('taskCycle').value = t.cycle || 'Phase 1B – Subsystem Characterisation';
+  document.getElementById('taskModule').value = t.module || '';
 
   // Set selected dependencies
   const depSel = document.getElementById('taskDependsOn');
@@ -1025,6 +1091,8 @@ async function saveTask(e) {
     dependsOn,
     isMilestone: document.getElementById('taskMilestone').checked,
     progress: parseInt(document.getElementById('taskProgress').value, 10),
+    cycle: document.getElementById('taskCycle').value,
+    module: document.getElementById('taskModule').value,
   });
 
   try {
@@ -1168,7 +1236,7 @@ function loadTasksJSON(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async e => {
+  reader.onload = e => {
     try {
       const d = JSON.parse(e.target.result);
       if (!Array.isArray(d.tasks)) throw new Error('Invalid format');
@@ -1176,19 +1244,10 @@ function loadTasksJSON(event) {
       const importedArchived = (d.archived || []).map(t => normalizeTask({
         ...t, _spId: null, archivedAt: t.archivedAt || new Date().toISOString()
       }));
-      showToast('Importing to SharePoint…', 'info');
-      for (const t of importedTasks) {
-        const spId = await spCreate(t);
-        t._spId = spId;
-      }
-      for (const t of importedArchived) {
-        const spId = await spCreate(t);
-        t._spId = spId;
-      }
       tasks = importedTasks;
       archived = importedArchived;
       renderAll();
-      showToast(`Imported ${tasks.length} tasks to SharePoint`);
+      showToast('Loaded tasks successfully');
     } catch (err) {
       console.error(err);
       showToast('Import failed: ' + err.message, 'error');
