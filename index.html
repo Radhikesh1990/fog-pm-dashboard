@@ -643,7 +643,7 @@ async function loadTasksFromSP() {
   const allItems = d.value.map(spToTask);
   tasks = allItems.filter(t => !t.archivedAt);
   archived = allItems.filter(t => !!t.archivedAt);
-  localStorage.setItem('pmTasksCache', JSON.stringify({ tasks, archived }));
+  saveLocalCache();
 }
 
 function renderAll() {
@@ -1095,42 +1095,54 @@ async function saveTask(e) {
     module: document.getElementById('taskModule').value,
   });
 
-  try {
-    if (editingId && task._spId) {
-      await spUpdate(task);
-      const idx = tasks.findIndex(t => t.id === editingId);
-      if (idx >= 0) tasks[idx] = task;
-    } else {
-      const spId = await spCreate(task);
-      task._spId = spId;
-      tasks.push(task);
-    }
-    closeModal();
-    renderAll();
-    showToast(editingId ? 'Task updated' : 'Task created');
-  } catch (err) {
-    console.error(err);
-    showToast('Failed to save to SharePoint', 'error');
+  const isEdit = !!(editingId && task._spId);
+  if (isEdit) {
+    const idx = tasks.findIndex(t => t.id === editingId);
+    if (idx >= 0) tasks[idx] = task;
+  } else {
+    tasks.push(task);
   }
+  closeModal();
+  saveLocalCache();
+  renderAll();
+  showToast(editingId ? 'Task updated' : 'Task created');
+  (async () => {
+    try {
+      if (isEdit) {
+        await spUpdate(task);
+      } else {
+        const spId = await spCreate(task);
+        task._spId = spId;
+        saveLocalCache();
+      }
+    } catch (err) {
+      console.error(err);
+      showOfflineMode();
+    }
+  })();
 }
 
 async function deleteTask(id) {
   if (!confirm('Delete this task permanently?')) return;
   const t = tasks.find(x => x.id === id);
   if (!t) return;
-  try {
-    if (t._spId) await spDelete(t._spId);
-    tasks = tasks.filter(x => x.id !== id);
-    tasks.forEach(x => {
-      x.dependsOn = (x.dependsOn || []).filter(dep => dep !== id);
-      if (x.parentId === id) x.parentId = null;
-    });
-    renderAll();
-    showToast('Task deleted');
-  } catch (err) {
-    console.error(err);
-    showToast('Failed to delete from SharePoint', 'error');
-  }
+  const spId = t._spId;
+  tasks = tasks.filter(x => x.id !== id);
+  tasks.forEach(x => {
+    x.dependsOn = (x.dependsOn || []).filter(dep => dep !== id);
+    if (x.parentId === id) x.parentId = null;
+  });
+  saveLocalCache();
+  renderAll();
+  showToast('Task deleted');
+  (async () => {
+    try {
+      if (spId) await spDelete(spId);
+    } catch (err) {
+      console.error(err);
+      showOfflineMode();
+    }
+  })();
 }
 
 async function markDone(id) {
@@ -1138,45 +1150,55 @@ async function markDone(id) {
   if (!t) return;
   t.status = 'done';
   if (!t.progress || t.progress < 100) t.progress = 100;
-  try {
-    if (t._spId) await spUpdate(t);
-    renderAll();
-    showToast('Marked as done');
-  } catch (err) {
-    console.error(err);
-    showToast('Failed to update in SharePoint', 'error');
-  }
+  saveLocalCache();
+  renderAll();
+  showToast('Marked as done');
+  (async () => {
+    try {
+      if (t._spId) await spUpdate(t);
+    } catch (err) {
+      console.error(err);
+      showOfflineMode();
+    }
+  })();
 }
 
 async function restoreTask(id) {
   const t = archived.find(x => x.id === id);
   if (!t) return;
-  try {
-    const restored = normalizeTask({ ...t, status: 'todo', archivedAt: null });
-    if (restored._spId) await spUpdate(restored);
-    archived = archived.filter(x => x.id !== id);
-    tasks.push(restored);
-    renderAll();
-    showToast('Task restored to active');
-  } catch (err) {
-    console.error(err);
-    showToast('Failed to restore in SharePoint', 'error');
-  }
+  const restored = normalizeTask({ ...t, status: 'todo', archivedAt: null });
+  archived = archived.filter(x => x.id !== id);
+  tasks.push(restored);
+  saveLocalCache();
+  renderAll();
+  showToast('Task restored to active');
+  (async () => {
+    try {
+      if (restored._spId) await spUpdate(restored);
+    } catch (err) {
+      console.error(err);
+      showOfflineMode();
+    }
+  })();
 }
 
 async function deleteArchived(id) {
   if (!confirm('Permanently delete this archived task?')) return;
   const t = archived.find(x => x.id === id);
   if (!t) return;
-  try {
-    if (t._spId) await spDelete(t._spId);
-    archived = archived.filter(x => x.id !== id);
-    renderTasks();
-    showToast('Archived task deleted');
-  } catch (err) {
-    console.error(err);
-    showToast('Failed to delete from SharePoint', 'error');
-  }
+  const spId = t._spId;
+  archived = archived.filter(x => x.id !== id);
+  saveLocalCache();
+  renderTasks();
+  showToast('Archived task deleted');
+  (async () => {
+    try {
+      if (spId) await spDelete(spId);
+    } catch (err) {
+      console.error(err);
+      showOfflineMode();
+    }
+  })();
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1190,19 +1212,22 @@ async function archiveCompleted() {
   }
 
   const stamp = new Date().toISOString();
-  try {
-    for (const t of completed) {
-      t.archivedAt = stamp;
-      if (t._spId) await spUpdate(t);
+  completed.forEach(t => { t.archivedAt = stamp; });
+  archived = [...archived, ...completed];
+  tasks = tasks.filter(t => t.status !== 'done');
+  saveLocalCache();
+  renderAll();
+  showToast(`Archived ${completed.length} completed task${completed.length !== 1 ? 's' : ''}`);
+  (async () => {
+    try {
+      for (const t of completed) {
+        if (t._spId) await spUpdate(t);
+      }
+    } catch (err) {
+      console.error(err);
+      showOfflineMode();
     }
-    archived = [...archived, ...completed];
-    tasks = tasks.filter(t => t.status !== 'done');
-    renderAll();
-    showToast(`Archived ${completed.length} completed task${completed.length !== 1 ? 's' : ''}`);
-  } catch (err) {
-    console.error(err);
-    showToast('Failed to archive in SharePoint', 'error');
-  }
+  })();
 }
 
 /* ══════════════════════════════════════════════════════
@@ -1215,6 +1240,17 @@ function toggleArchiveView() {
   btn.classList.toggle('bg-indigo-800/40', showingArchive);
   btn.classList.toggle('border-indigo-600/40', showingArchive);
   renderTasks();
+}
+
+/* ══════════════════════════════════════════════════════
+   LOCAL CACHE HELPERS
+══════════════════════════════════════════════════════ */
+function saveLocalCache() {
+  localStorage.setItem('pmTasksCache', JSON.stringify({ tasks, archived }));
+}
+function showOfflineMode() {
+  const ind = document.getElementById('offlineIndicator');
+  if (ind) { ind.classList.remove('hidden'); ind.classList.add('flex'); }
 }
 
 /* ══════════════════════════════════════════════════════
